@@ -1,4 +1,5 @@
-import pygame,sys,random
+import pygame,sys,random,math
+import time
 
 pygame.init()
 SCREEN_WIDTH = 1100
@@ -78,13 +79,13 @@ class NPuzzle:
 
         normal_font = pygame.font.SysFont("calibri",40)
          
-        def __init__(self,x,y,number,square_size):
+        def __init__(self,x,y,number,square_size,font):
             super().__init__()
 
 
             self.image = pygame.Surface((square_size,square_size))
 
-            number_text = self.normal_font.render(str(number),True,BLACK)
+            number_text = font.render(str(number),True,BLACK)
 
             self.image.fill(TILE_COLOR)
 
@@ -98,6 +99,10 @@ class NPuzzle:
         def draw(self,x,y):
             screen.blit(self.image,(x,y))
 
+    
+    
+    
+    
 
 
 
@@ -106,8 +111,20 @@ class NPuzzle:
 
         self.numbers = list(range(1,n**2))
         self.n = n
+
+        if n <= 10:
+            self.tile_font = self.font
+        elif n <= 24:
+            self.tile_font = pygame.font.SysFont("calibri",20)
+        elif n <= 39:
+            self.tile_font = pygame.font.SysFont("calibri",10)
+        elif n <= 45:
+            self.tile_font = pygame.font.SysFont("calibri",8)
+        elif n <= 50:
+            self.tile_font = pygame.font.SysFont("calibri",7)
         pygame.display.set_caption(f"{n**2}-Puzzle")
         self.numbers.append(None)
+
         self.square_size = BOARD_SIZE//n
         top_gap = 50
         self.board_size = self.square_size * n
@@ -243,7 +260,7 @@ class NPuzzle:
                     self.none_location = (row,col)
                     new_row.append(None)
                     continue
-                tile = self.Tile(col * self.square_size,row * self.square_size,number,self.square_size)
+                tile = self.Tile(col * self.square_size,row * self.square_size,number,self.square_size,self.tile_font)
                 new_row.append(tile)
 
 
@@ -254,6 +271,155 @@ class NPuzzle:
 
 
 def menu():
+
+    def get_board_size():
+
+        title_text = title_font.render("BOARD SIZE",True,BLACK)
+        title_rect = title_text.get_rect(center=(SCREEN_WIDTH//2,top_gap + title_text.get_height()//2))
+        
+        flickering_event = pygame.USEREVENT + 1
+        
+        text = '|'
+        last_text =  title_font.render(text,True,BLACK)
+        pygame.time.set_timer(flickering_event,200)
+        
+        button_width = 600
+        button_height = 100
+        start_button = Button(SCREEN_WIDTH//2 - button_width//2,SCREEN_HEIGHT - top_gap - button_height,button_width,button_height,"START GAME",title_font)
+        button = pygame.sprite.GroupSingle(start_button)
+
+
+        invalid_text_1 = title_font.render("Please Enter A Value!",True,BLACK)
+        invalid_text_2 = title_font.render("Size has to be >= 2!",True,BLACK)
+        invalid_text_3 = title_font.render("Size has to be <= 50!",True,BLACK)
+
+        
+        def check_validity():
+            nonlocal invalid_text,invalid_start_time
+            if text != '|' and text != '':
+                last = text[-1]
+
+                if last == '|':
+                    number = int(text[:-1])
+                else:
+                    number = int(text)
+
+                if number <= 1:
+                    invalid_text = invalid_text_2
+                    invalid_start_time = time.time()
+                elif number > 50:
+                    invalid_text = invalid_text_3
+                    invalid_start_time = time.time()
+                else:                            
+                    return number 
+            else:
+                invalid_text = invalid_text_1
+                invalid_start_time = time.time()
+
+
+        invalid_start_time = None
+        invalid_text = None
+        while True:
+            
+            current_time = time.time()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == flickering_event:
+
+                    if text:
+                        last = text[-1]
+                    else:
+                        last = None
+
+                    if last == '|':
+                        text = text[:-1]
+                    else:
+                        text += '|'
+
+                    last_text =  title_font.render(text,True,BLACK)
+                elif event.type == pygame.KEYDOWN:
+                    last = None
+                    if text:
+                        last = text[-1]
+                    if pygame.K_0 <= event.key <= pygame.K_9:
+                        number = chr(event.key)
+
+                        last = None
+                        if text:
+                            last = text[-1]
+
+                        if last == '|':
+                            text = text[:-1] + number + '|'
+                        else:
+                            text += number
+
+
+                        last_text =  title_font.render(text,True,BLACK)
+                    elif event.key == pygame.K_BACKSPACE:
+
+
+                        if last == '|':
+                            text = text[:-2]
+                        elif text:
+                            text = text[:-1]
+
+
+                        last_text =  title_font.render(text,True,BLACK)
+                    elif event.key == pygame.K_RETURN:
+                        n = check_validity()
+                        if n:
+                            return n
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+
+                    point = pygame.mouse.get_pos()
+
+                    if button.sprite.collided_on(point):
+                        n = check_validity()
+                        if n:
+                            return n
+
+
+            
+
+            if invalid_start_time:
+                if current_time - invalid_start_time >= 1:
+                    invalid_start_time = None
+
+
+
+
+
+
+
+            point = pygame.mouse.get_pos()
+
+            button.update(point)
+
+
+
+            screen.fill(BGCOLOR)
+            screen.blit(title_text,title_rect)
+            if text and text[-1] == '|':
+                text_one_less = title_font.render(text[:-1],True,BLACK)
+                width = text_one_less.get_width()//2
+            else:
+                width = last_text.get_width()//2
+
+            button.draw(screen)
+
+            screen.blit(last_text,(SCREEN_WIDTH//2 - width,SCREEN_HEIGHT//2 - last_text.get_height()//2))
+            if invalid_start_time:
+                screen.blit(invalid_text,(SCREEN_WIDTH//2 - invalid_text.get_width()//2,SCREEN_HEIGHT -  top_gap-button_height - invalid_text.get_height()))
+
+
+
+            pygame.display.update()
+
+
+
 
 
     title_font = pygame.font.SysFont("calibri",100)
@@ -280,7 +446,9 @@ def menu():
                 for i,button in enumerate(buttons):
                     if button.collided_on(point):
                         if i == 0:
-                            NPuzzle()
+                            n = get_board_size()
+                            NPuzzle(n)
+                            pygame.display.set_caption("N-Puzzle")
 
 
 
