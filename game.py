@@ -1,4 +1,5 @@
 import pygame,sys,random,math
+from pprint import pprint
 import time
 
 pygame.init()
@@ -6,6 +7,7 @@ SCREEN_WIDTH = 1100
 BOARD_SIZE = SCREEN_HEIGHT = 800
 WHITE = (255,) * 3
 BLACK = (0,) * 3
+GREEN = (0,255,0)
 RED = (255,0,0)
 TILE_COLOR = (222,184,135)
 BGCOLOR = (210,105,30)
@@ -84,6 +86,7 @@ class NPuzzle:
 
 
             self.image = pygame.Surface((square_size,square_size))
+            self.number = number
 
             number_text = font.render(str(number),True,BLACK)
 
@@ -162,7 +165,10 @@ class NPuzzle:
 
     def _play_game(self):
 
-
+        
+        finished = False
+        font = pygame.font.SysFont("calibri",80)
+        win_text = font.render("SOLVED!",True,GREEN)
         while True:
 
 
@@ -175,41 +181,51 @@ class NPuzzle:
                     x,y = point
 
 
-                    if x <= self.board_size:
+                    if not finished and x <= self.board_size:
                         row,col = y//self.square_size,x//self.square_size
 
                         for neighbor_row,neighbor_col in ((row -1,col),(row + 1,col),(row,col -1),(row,col +1)):
                             if 0 <= neighbor_row < self.n and 0 <= neighbor_col < self.n and self.board[neighbor_row][neighbor_col] is None:
                                 self.board[neighbor_row][neighbor_col],self.board[row][col] = self.board[row][col],self.board[neighbor_row][neighbor_col]
                                 self.none_location = (row,col)
+                                finished = self._check_finished()
                     else:
 
                         for i,button in enumerate(self.buttons):
                             if button.collided_on(point):
                                 if i == 0:
                                     self._create_board()
+                                    finished = False
                                 else:
                                     return
 
-                if event.type == pygame.KEYDOWN:
+                if not finished and event.type == pygame.KEYDOWN:
                     row,col = self.none_location
+                    moved = False
                     if event.key == pygame.K_DOWN:
 
                         if row - 1 >= 0:
                             self.board[row][col],self.board[row -1][col] = self.board[row -1][col],self.board[row][col]
                             self.none_location = (row - 1,col)
+                            moved = True
                     if event.key  == pygame.K_UP:
                         if row + 1 < self.n:
                             self.board[row][col],self.board[row +1][col] = self.board[row +1][col],self.board[row][col]
                             self.none_location = (row + 1,col)
+                            moved = True
                     if event.key == pygame.K_RIGHT:
                         if col - 1 >= 0:
                             self.board[row][col],self.board[row][col - 1] = self.board[row][col - 1],self.board[row][col]
                             self.none_location = (row,col -1 )
+                            moved = True
                     if event.key == pygame.K_LEFT:
                         if col + 1 < self.n:
                             self.board[row][col],self.board[row][col + 1] = self.board[row][col + 1],self.board[row][col]
                             self.none_location = (row,col +1 )
+                            moved = True
+
+                    if moved:
+                        finished = self._check_finished()
 
 
 
@@ -233,22 +249,88 @@ class NPuzzle:
             
             screen.fill(BGCOLOR)
             self._draw_board()
+            if finished:
+                screen.blit(win_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - win_text.get_width()//2,SCREEN_HEIGHT - 200 - win_text.get_height()))
             pygame.display.update()
             clock.tick(FPS)
 
 
 
 
+    
+    def _is_solvable(self):
+        '''later on try to figure out how to do it using merge sort for O(nlogn) efficiency'''
+        inversions = 0
+        none_index = None
+        for i in range(len(self.numbers) - 1):
+            if self.numbers[i] is None:
+                none_index = i
+                continue
+
+
+            for j in range(i + 1,len(self.numbers)):
+                if self.numbers[j] is None:
+                    continue
+                if self.numbers[j] < self.numbers[i]:
+                    inversions += 1
+
+        
+        if none_index is None:
+            none_index = self.n**2 - 1
+        
+        n = self.n
+        if n % 2 == 1:
+            return inversions % 2 == 0
+        else:
+            empty_row = none_index // self.n
+
+            from_bottom = self.n - empty_row
+
+            if from_bottom % 2 == 0 and inversions % 2 == 1:
+                return True
+
+            if from_bottom % 2 == 1 and inversions % 2 == 0:
+                return True
+
+
+        return False
+
 
 
 
     
 
+    def _check_finished(self):
+
+
+        start_number = 1
+        
+        pprint(self.board)
+        if self.board[self.n -1][self.n -1] is not None:
+            return False
+
+        for row in range(self.n):
+            for col in range(self.n):
+                if self.board[row][col] is None:
+                    continue
+
+                if self.board[row][col].number != start_number:
+                    return False
+
+                start_number += 1
+
+        return True
+
+
 
     def _create_board(self):
 
+        
 
         random.shuffle(self.numbers)
+
+        while not self._is_solvable():
+            random.shuffle(self.numbers)
 
         self.board = []
         self.tiles = pygame.sprite.Group()
