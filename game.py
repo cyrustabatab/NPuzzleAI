@@ -168,8 +168,23 @@ class NPuzzle:
         
         finished = False
         font = pygame.font.SysFont("calibri",80)
+        info_font = pygame.font.SysFont("calibri",50)
         win_text = font.render("SOLVED!",True,GREEN)
+        moves = 0
+        moves_text = info_font.render("MOVES: 0",True,BLACK)
+        start_time = time.time()
+        time_text = info_font.render("00:00.0",True,BLACK)
+
         while True:
+            
+            current_time = time.time()
+
+            time_elapsed = current_time - start_time
+            time_elapsed_minutes = int(time_elapsed//60)
+            time_elapsed_seconds = time_elapsed - time_elapsed_minutes * 60
+
+            time_text = info_font.render(f"{str(time_elapsed_minutes).zfill(2)}:{str(round(time_elapsed_seconds,1)).zfill(4)}",True,BLACK)
+
 
 
             for event in pygame.event.get():
@@ -189,6 +204,9 @@ class NPuzzle:
                                 self.board[neighbor_row][neighbor_col],self.board[row][col] = self.board[row][col],self.board[neighbor_row][neighbor_col]
                                 self.none_location = (row,col)
                                 finished = self._check_finished()
+                                moves += 1
+                                moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
+
                     else:
 
                         for i,button in enumerate(self.buttons):
@@ -196,6 +214,10 @@ class NPuzzle:
                                 if i == 0:
                                     self._create_board()
                                     finished = False
+                                    moves = 0
+                                    moves_text = info_font.render("MOVES: 0",True,BLACK)
+                                    start_time = time.time()
+                                    time_text = info_font.render("00:00.0",True,BLACK)
                                 else:
                                     return
 
@@ -226,6 +248,9 @@ class NPuzzle:
 
                     if moved:
                         finished = self._check_finished()
+                        moves += 1
+                        moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
+
 
 
 
@@ -249,6 +274,8 @@ class NPuzzle:
             
             screen.fill(BGCOLOR)
             self._draw_board()
+            screen.blit(moves_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - moves_text.get_width()//2,SCREEN_HEIGHT - 50))
+            screen.blit(time_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - time_text.get_width()//2,SCREEN_HEIGHT - 100))
             if finished:
                 screen.blit(win_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - win_text.get_width()//2,SCREEN_HEIGHT - 200 - win_text.get_height()))
             pygame.display.update()
