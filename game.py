@@ -1,6 +1,8 @@
 import pygame,sys,random,math
 from pprint import pprint
 import time
+import threading
+import heapq
 
 pygame.init()
 SCREEN_WIDTH = 1100
@@ -109,11 +111,12 @@ class NPuzzle:
 
 
 
-    def __init__(self,n=4):
+    def __init__(self,n=4,solver_mode=False):
 
 
         self.numbers = list(range(1,n**2))
         self.n = n
+        self.solver_mode = solver_mode
 
         if n <= 10:
             self.tile_font = self.font
@@ -137,6 +140,10 @@ class NPuzzle:
         self.reset_button = Button(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - button_width//2,top_gap + button_height//2,button_width,button_height,"RESET",self.button_font)
         self.menu_button = Button(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - button_width//2,top_gap + button_height + top_gap * 2,button_width,button_height,"MENU",self.button_font)
         self.buttons = pygame.sprite.Group(self.reset_button,self.menu_button)
+        if self.solver_mode:
+            self.solve_button = Button(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - button_width//2,top_gap + 2  *button_height + top_gap * 3,button_width,button_height,"SOLVE",self.button_font)
+            self.buttons.add(self.solve_button)
+
 
 
 
@@ -158,7 +165,8 @@ class NPuzzle:
 
         for x in range(0,self.board_size + 1,self.square_size):
             pygame.draw.line(screen,BLACK,(x,0),(x,self.board_size))
-
+        
+        
         self.buttons.draw(screen)
 
 
@@ -173,17 +181,20 @@ class NPuzzle:
         moves = 0
         moves_text = info_font.render("MOVES: 0",True,BLACK)
         start_time = time.time()
+
         time_text = info_font.render("00:00.0",True,BLACK)
 
         while True:
             
-            current_time = time.time()
 
-            time_elapsed = current_time - start_time
-            time_elapsed_minutes = int(time_elapsed//60)
-            time_elapsed_seconds = time_elapsed - time_elapsed_minutes * 60
+            if not self.solver_mode:
+                current_time = time.time()
 
-            time_text = info_font.render(f"{str(time_elapsed_minutes).zfill(2)}:{str(round(time_elapsed_seconds,1)).zfill(4)}",True,BLACK)
+                time_elapsed = current_time - start_time
+                time_elapsed_minutes = int(time_elapsed//60)
+                time_elapsed_seconds = time_elapsed - time_elapsed_minutes * 60
+
+                time_text = info_font.render(f"{str(time_elapsed_minutes).zfill(2)}:{str(round(time_elapsed_seconds,1)).zfill(4)}",True,BLACK)
 
 
 
@@ -191,12 +202,12 @@ class NPuzzle:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-                if event.type == pygame.MOUSEBUTTONDOWN:
+                if  event.type == pygame.MOUSEBUTTONDOWN:
                     point = pygame.mouse.get_pos()
                     x,y = point
 
 
-                    if not finished and x <= self.board_size:
+                    if not finished and not self.solver_mode and  x <= self.board_size:
                         row,col = y//self.square_size,x//self.square_size
 
                         for neighbor_row,neighbor_col in ((row -1,col),(row + 1,col),(row,col -1),(row,col +1)):
@@ -218,10 +229,22 @@ class NPuzzle:
                                     moves_text = info_font.render("MOVES: 0",True,BLACK)
                                     start_time = time.time()
                                     time_text = info_font.render("00:00.0",True,BLACK)
-                                else:
+                                    if self.solver_mode:
+                                        self.buttons.add(self.solve_button)
+                                elif i == 1:
                                     return
+                                elif self.solver_mode and i == 2:
+                                    solver = NPuzzleSolver(self.board)
+                                    actions = solver.solve()
+                                    moves_text = self._animate_solve(actions)
+                                    finished = True
 
-                if not finished and event.type == pygame.KEYDOWN:
+
+
+
+
+
+                if not finished and not self.solver_mode and event.type == pygame.KEYDOWN:
                     row,col = self.none_location
                     moved = False
                     if event.key == pygame.K_DOWN:
@@ -275,11 +298,82 @@ class NPuzzle:
             screen.fill(BGCOLOR)
             self._draw_board()
             screen.blit(moves_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - moves_text.get_width()//2,SCREEN_HEIGHT - 50))
-            screen.blit(time_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - time_text.get_width()//2,SCREEN_HEIGHT - 100))
+            if not self.solver_mode:
+                screen.blit(time_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - time_text.get_width()//2,SCREEN_HEIGHT - 100))
             if finished:
                 screen.blit(win_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - win_text.get_width()//2,SCREEN_HEIGHT - 200 - win_text.get_height()))
             pygame.display.update()
             clock.tick(FPS)
+
+
+    
+    def _make_move(self,action):
+
+
+        empty_row,empty_col = self.none_location
+
+        if action == 'L':
+            self.board[empty_row][empty_col] ,self.board[empty_row][empty_col +1] = self.board[empty_row][empty_col +1],self.board[empty_row][empty_col]
+            self.none_location = (empty_row,empty_col + 1)
+        elif action == 'R':
+            self.board[empty_row][empty_col] ,self.board[empty_row][empty_col -1] = self.board[empty_row][empty_col -1],self.board[empty_row][empty_col]
+            self.none_location = (empty_row,empty_col - 1)
+        elif action == 'U':
+            self.board[empty_row][empty_col] ,self.board[empty_row + 1][empty_col] = self.board[empty_row + 1][empty_col],self.board[empty_row][empty_col]
+            self.none_location = (empty_row + 1,empty_col)
+        else:
+            self.board[empty_row][empty_col] ,self.board[empty_row - 1][empty_col] = self.board[empty_row - 1][empty_col],self.board[empty_row][empty_col]
+            self.none_location = (empty_row - 1,empty_col)
+
+    
+    def _animate_solve(self,actions):
+
+        moves = 0
+        info_font = pygame.font.SysFont("calibri",50)
+        moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
+        
+
+        start_time = time.time()
+
+        actions_index =0
+        action_mapping_to_text= {'U': 'UP','D': 'DOWN','L': 'LEFT','R': 'RIGHT'}
+        action_text = info_font.render(f"{action_mapping_to_text[actions[actions_index]]}",True,BLACK)
+        
+
+
+        while True:
+            
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+            
+
+            current_time = time.time()
+
+            if current_time - start_time >= 2:
+                self._make_move(actions[actions_index])
+                moves += 1
+                moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
+                actions_index += 1
+
+                if actions_index == len(actions):
+                    self.solve_button.kill()
+                    return moves_text
+
+                action_text = info_font.render(f"{action_mapping_to_text[actions[actions_index]]}",True,BLACK)
+                start_time = current_time
+
+            screen.fill(BGCOLOR)
+
+            self._draw_board()
+
+
+            screen.blit(moves_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - moves_text.get_width()//2,SCREEN_HEIGHT - 50))
+            screen.blit(action_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - action_text.get_width()//2,SCREEN_HEIGHT - 200))
+            pygame.display.update()
+
 
 
 
@@ -554,10 +648,13 @@ def menu():
 
                 for i,button in enumerate(buttons):
                     if button.collided_on(point):
-                        if i == 0:
-                            n = get_board_size()
-                            NPuzzle(n)
-                            pygame.display.set_caption("N-Puzzle")
+                        solver_mode = False
+                        n = get_board_size()
+                        if i == 1:
+                            solver_mode = True
+                            
+                        NPuzzle(n,solver_mode)
+                        pygame.display.set_caption("N-Puzzle")
 
 
 
@@ -571,6 +668,194 @@ def menu():
         screen.blit(title_text,title_rect)
 
         pygame.display.update()
+
+
+class NPuzzleSolver:
+    
+
+
+    class State:
+
+        def __init__(self,board,distance=0,action=None,previous_state=None):
+            self.board = board
+            self.distance = distance
+            self.action = action
+            self.previous_state = previous_state
+
+
+        @property
+        def heuristic(self):
+            return self.board.heuristic
+
+
+        @property
+        def tiles(self):
+            return self.board.tiles
+
+        
+
+        def __lt__(self,other): 
+
+            if isinstance(other,NPuzzleSolver.State):
+                return self.distance + self.heuristic <= other.distance + other.heuristic
+
+
+
+    class Board:
+
+
+        def __init__(self,tiles):
+
+            self.n = int(math.sqrt(len(tiles)))
+            self.tiles = tiles
+            self.empty_index = self.tiles.index(None)
+
+            self._calculate_heuristic()
+        
+        def _manhattan_distance(self,a,b):
+
+
+            a_row,b_row = a//self.n,b//self.n
+            a_col,b_col = a % self.n,b % self.n
+
+            return abs(a_row - b_row) + abs(a_col - b_col)
+
+
+
+
+        def _calculate_heuristic(self):
+
+
+            total = 0
+
+
+            for i,number in enumerate(self.tiles):
+                if number is None:
+                    continue
+
+                total += self._manhattan_distance(i,number -1)
+
+            
+            self.heuristic = total
+        
+
+        def _swap(self,i,j):
+
+            tiles = self.tiles.copy()
+
+            tiles[i],tiles[j] = tiles[j],tiles[i]
+
+            return tiles
+        
+        def get_successors(self):
+
+
+            successors = []
+
+            empty_index = self.empty_index
+            empty_row,empty_col = self.empty_index//self.n,self.empty_index % self.n
+
+
+            if empty_row > 0:
+                successor = NPuzzleSolver.Board(self._swap(empty_index,empty_index- self.n))
+                successors.append((successor,'D'))
+
+            if empty_row < self.n - 1:
+                successor = NPuzzleSolver.Board(self._swap(empty_index,empty_index+ self.n))
+                successors.append((successor,'U'))
+
+
+            if empty_col > 0:
+                successor = NPuzzleSolver.Board(self._swap(empty_index,empty_index - 1))
+                successors.append((successor,'R'))
+
+
+            if empty_col < self.n - 1:
+                successor = NPuzzleSolver.Board(self._swap(empty_index,empty_index + 1))
+                successors.append((successor,'L'))
+
+
+            return successors
+
+
+
+
+
+
+
+
+
+
+    def __init__(self,board):
+
+
+        self.tiles = []
+
+        self.n = len(board)
+
+        
+        for row in board:
+            for tile in row:
+                if tile is None:
+                    self.tiles.append(tile)
+                else:
+                    self.tiles.append(tile.number)
+
+        self.goal_state = list(range(1,self.n**2))
+        self.goal_state.append(None)
+
+
+
+    def solve(self):
+        start_board = self.Board(self.tiles)
+        start_state = self.State(start_board)
+
+        states = []
+
+        heapq.heappush(states,start_state)
+
+
+        visited = set()
+
+        visited.add(tuple(start_board.tiles))
+
+
+        while states:
+            current_state = heapq.heappop(states)
+
+            if current_state.tiles == self.goal_state:
+                break
+
+
+
+            for successor,action in current_state.board.get_successors():
+                successor_tiles = tuple(successor.tiles)
+                if successor_tiles not in visited:
+                    visited.add(tuple(successor_tiles))
+                    next_state = self.State(successor,current_state.distance+ 1,action,current_state)
+                    heapq.heappush(states,next_state)
+
+
+        actions = []
+        while current_state:
+            actions.append(current_state.action)
+            current_state = current_state.previous_state
+
+        
+
+        actions.pop()
+
+        actions.reverse()
+
+        return actions
+
+
+
+
+
+
+
+
 
 
 

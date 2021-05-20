@@ -190,7 +190,7 @@ class NPuzzleSolver:
 if __name__ == "__main__":
     
 
-    board = [[10,5,9,6],[7,1,2,11],[15,8,4,12],[14,13,3,None]]
+    board = [[13,6,2,15],[12,11,8,None],[4,3,5,7],[1,10,14,9]]
 
 
     NPuzzleSolver(board)
