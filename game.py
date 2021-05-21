@@ -4,6 +4,10 @@ import time
 import threading
 import heapq
 
+# IDA Deepening A* Search and add ability to make custom board
+
+vec = pygame.math.Vector2
+
 pygame.init()
 SCREEN_WIDTH = 1100
 BOARD_SIZE = SCREEN_HEIGHT = 800
@@ -99,7 +103,9 @@ class NPuzzle:
 
 
             self.rect = self.image.get_rect(topleft=(x,y))
-
+        
+        def move(self,amount):
+            self.rect.center += amount
 
         def draw(self,x,y):
             screen.blit(self.image,(x,y))
@@ -151,12 +157,12 @@ class NPuzzle:
         self._play_game()
     
     
-    def _draw_board(self):
+    def _draw_board(self,tile_to_skip=None):
 
 
         for row in range(self.n):
             for col in range(self.n):
-                if self.board[row][col] is None:
+                if self.board[row][col] is None or self.board[row][col] is tile_to_skip:
                     continue
                 self.board[row][col].draw(col * self.square_size,row * self.square_size)
 
@@ -307,26 +313,83 @@ class NPuzzle:
 
 
     
-    def _make_move(self,action):
-
+    def _make_move(self,action,moves_text,action_text):
+        
 
         empty_row,empty_col = self.none_location
-
+        
         if action == 'L':
-            self.board[empty_row][empty_col] ,self.board[empty_row][empty_col +1] = self.board[empty_row][empty_col +1],self.board[empty_row][empty_col]
+            #self.board[empty_row][empty_col] ,self.board[empty_row][empty_col +1] = self.board[empty_row][empty_col +1],self.board[empty_row][empty_col]
+            target_row,target_col =  empty_row,empty_col + 1
+            direction = vec(-1,0)
+
             self.none_location = (empty_row,empty_col + 1)
         elif action == 'R':
-            self.board[empty_row][empty_col] ,self.board[empty_row][empty_col -1] = self.board[empty_row][empty_col -1],self.board[empty_row][empty_col]
+            #self.board[empty_row][empty_col] ,self.board[empty_row][empty_col -1] = self.board[empty_row][empty_col -1],self.board[empty_row][empty_col]
+            direction = vec(1,0)
             self.none_location = (empty_row,empty_col - 1)
+            target_row,target_col =  empty_row,empty_col - 1
         elif action == 'U':
-            self.board[empty_row][empty_col] ,self.board[empty_row + 1][empty_col] = self.board[empty_row + 1][empty_col],self.board[empty_row][empty_col]
+            #self.board[empty_row][empty_col] ,self.board[empty_row + 1][empty_col] = self.board[empty_row + 1][empty_col],self.board[empty_row][empty_col]
             self.none_location = (empty_row + 1,empty_col)
+            direction = vec(0,-1)
+            target_row,target_col =  empty_row + 1,empty_col
         else:
-            self.board[empty_row][empty_col] ,self.board[empty_row - 1][empty_col] = self.board[empty_row - 1][empty_col],self.board[empty_row][empty_col]
+            #self.board[empty_row][empty_col] ,self.board[empty_row - 1][empty_col] = self.board[empty_row - 1][empty_col],self.board[empty_row][empty_col]
+            direction = vec(0,1)
             self.none_location = (empty_row - 1,empty_col)
+            target_row,target_col =  empty_row - 1,empty_col
+
+        
+
+        tile = self.board[target_row][target_col]
+
+
+
+        current_location = vec(target_col * self.square_size,target_row * self.square_size)
+
+        start = vec(empty_col * self.square_size,empty_row * self.square_size)
+
+
+        
+    
+        
+        
+
+
+
+
+        while start != current_location:
+
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+            
+        
+
+            current_location +=  1 * direction  
+        
+
+            screen.fill(BGCOLOR)
+            self._draw_board(tile) 
+            tile.draw(*current_location)
+            pygame.draw.rect(screen,BLACK,(*current_location,self.square_size,self.square_size),1)
+
+
+            screen.blit(moves_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - moves_text.get_width()//2,SCREEN_HEIGHT - 50))
+            screen.blit(action_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - action_text.get_width()//2,SCREEN_HEIGHT - 200))
+            pygame.display.update()
+            clock.tick(FPS * 3)
+
+        
+        self.board[empty_row][empty_col],self.board[target_row][target_col] = self.board[target_row][target_col],self.board[empty_row][empty_col]
 
     
     def _animate_solve(self,actions):
+        
+
 
         moves = 0
         info_font = pygame.font.SysFont("calibri",50)
@@ -353,9 +416,9 @@ class NPuzzle:
             current_time = time.time()
 
             if current_time - start_time >= 2:
-                self._make_move(actions[actions_index])
                 moves += 1
                 moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
+                self._make_move(actions[actions_index],moves_text,action_text)
                 actions_index += 1
 
                 if actions_index == len(actions):
@@ -369,9 +432,8 @@ class NPuzzle:
 
             self._draw_board()
 
-
             screen.blit(moves_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - moves_text.get_width()//2,SCREEN_HEIGHT - 50))
-            screen.blit(action_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - action_text.get_width()//2,SCREEN_HEIGHT - 200))
+
             pygame.display.update()
 
 
