@@ -154,6 +154,8 @@ class NPuzzle:
 
 
         self._create_board()
+        pygame.mixer.music.load('music.ogg')
+        pygame.mixer.music.play(-1)
         self._play_game()
     
     
@@ -241,7 +243,7 @@ class NPuzzle:
                                     return
                                 elif self.solver_mode and i == 2:
                                     solver = NPuzzleSolver(self.board)
-                                    actions = solver.solve()
+                                    actions = solver.solve_ida()
                                     moves_text = self._animate_solve(actions)
                                     finished = True
 
@@ -313,7 +315,7 @@ class NPuzzle:
 
 
     
-    def _make_move(self,action,moves_text,action_text):
+    def _make_move(self,action,moves_text,action_text,action_text_arrow):
         
 
         empty_row,empty_col = self.none_location
@@ -380,6 +382,7 @@ class NPuzzle:
 
             screen.blit(moves_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - moves_text.get_width()//2,SCREEN_HEIGHT - 50))
             screen.blit(action_text,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - action_text.get_width()//2,SCREEN_HEIGHT - 200))
+            screen.blit(action_text_arrow,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - action_text_arrow.get_width()//2,SCREEN_HEIGHT - 150))
             pygame.display.update()
             clock.tick(FPS * 3)
 
@@ -400,7 +403,9 @@ class NPuzzle:
 
         actions_index =0
         action_mapping_to_text= {'U': 'UP','D': 'DOWN','L': 'LEFT','R': 'RIGHT'}
+        action_mapping_to_arrow = {'U': u"\u2191",'D':u"\u2193",'L':u"\u2190" ,'R':u"\u2192"}
         action_text = info_font.render(f"{action_mapping_to_text[actions[actions_index]]}",True,BLACK)
+        action_text_arrow = info_font.render(f"{action_mapping_to_arrow[actions[actions_index]]}",True,BLACK)
         
 
 
@@ -418,7 +423,7 @@ class NPuzzle:
             if current_time - start_time >= 2:
                 moves += 1
                 moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
-                self._make_move(actions[actions_index],moves_text,action_text)
+                self._make_move(actions[actions_index],moves_text,action_text,action_text_arrow)
                 actions_index += 1
 
                 if actions_index == len(actions):
@@ -426,6 +431,7 @@ class NPuzzle:
                     return moves_text
 
                 action_text = info_font.render(f"{action_mapping_to_text[actions[actions_index]]}",True,BLACK)
+                action_text_arrow = info_font.render(f"{action_mapping_to_arrow[actions[actions_index]]}",True,BLACK)
                 start_time = current_time
 
             screen.fill(BGCOLOR)
@@ -536,7 +542,10 @@ class NPuzzle:
 
 
 def menu():
+    
 
+    pygame.mixer.music.load('mainmenu.ogg')
+    pygame.mixer.music.play(-1)
     def get_board_size():
 
         title_text = title_font.render("BOARD SIZE",True,BLACK)
@@ -716,6 +725,8 @@ def menu():
                             solver_mode = True
                             
                         NPuzzle(n,solver_mode)
+                        pygame.mixer.music.load('mainmenu.ogg')
+                        pygame.mixer.music.play(-1)
                         pygame.display.set_caption("N-Puzzle")
 
 
@@ -845,9 +856,6 @@ class NPuzzleSolver:
 
 
 
-
-
-
     def __init__(self,board):
 
 
@@ -865,6 +873,94 @@ class NPuzzleSolver:
 
         self.goal_state = list(range(1,self.n**2))
         self.goal_state.append(None)
+
+    
+
+
+    def solve_ida(self):
+
+        start_board =self.Board(self.tiles)
+        start_state = self.State(start_board)
+
+        threshold = start_state.heuristic
+        print(threshold)
+
+
+        def search(state,threshold,visited):
+            
+
+            heuristic = state.distance + state.heuristic
+            if heuristic > threshold:
+                return heuristic,None
+
+            if state.tiles == self.goal_state:
+                return "FOUND",state
+
+            minimum = float("inf")
+
+
+            for successor,action in state.board.get_successors():
+                tiles = tuple(successor.tiles)
+                if tiles not in visited:
+                    visited.add(tiles)
+                    next_state = self.State(successor,state.distance+ 1,action,state)
+                    result,end_state = search(next_state,threshold,visited)
+
+                    if result == 'FOUND':
+                        return 'FOUND',end_state
+
+                    if result < minimum:
+                        minimum = result
+
+                    visited.remove(tiles)
+            
+
+            return minimum,None
+
+
+
+
+        while True:
+            visited = {tuple(start_board.tiles)}
+            result,end_state = search(start_state,threshold,visited)
+
+            if result == 'FOUND':
+                break
+
+            threshold = result 
+
+
+        actions = []
+        current_state = end_state
+        while current_state:
+            actions.append(current_state.action)
+            current_state = current_state.previous_state
+
+        
+
+        actions.pop()
+
+        actions.reverse()
+
+        return actions
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
