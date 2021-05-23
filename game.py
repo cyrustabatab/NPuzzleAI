@@ -82,7 +82,9 @@ class Button(pygame.sprite.Sprite):
 class NPuzzle:
 
     font = pygame.font.SysFont("calibri",40)
-    button_font = pygame.font.SysFont("calibri",80)
+    button_font = pygame.font.SysFont("calibri",70)
+    back_button = pygame.image.load('back.png').convert_alpha()
+    back_button = pygame.transform.scale(back_button,(50,50))
     class Tile(pygame.sprite.Sprite):
 
         normal_font = pygame.font.SysFont("calibri",40)
@@ -141,13 +143,18 @@ class NPuzzle:
         top_gap = 50
         self.board_size = self.square_size * n
         pygame.display.set_mode((SCREEN_WIDTH,self.board_size))
-        button_width = 200
-        button_height = button_width//2
+        button_width = 250
+        button_height = button_width//3
         self.reset_button = Button(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - button_width//2,top_gap + button_height//2,button_width,button_height,"RESET",self.button_font)
         self.menu_button = Button(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - button_width//2,top_gap + button_height + top_gap * 2,button_width,button_height,"MENU",self.button_font)
+
+
+        self.back_button_rect = self.back_button.get_rect(topleft=(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - self.back_button.get_width()//2,20))
         self.buttons = pygame.sprite.Group(self.reset_button,self.menu_button)
         if self.solver_mode:
-            self.solve_button = Button(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - button_width//2,top_gap + 2  *button_height + top_gap * 3,button_width,button_height,"SOLVE",self.button_font)
+            self.custom_button = Button(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - button_width//2,top_gap + 2 * button_height + top_gap * 3,button_width,button_height,"CUSTOM",self.button_font)
+            self.solve_button = Button(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - button_width//2,top_gap + 3  *button_height + top_gap * 4,button_width,button_height,"SOLVE",self.button_font)
+            self.buttons.add(self.custom_button)
             self.buttons.add(self.solve_button)
 
 
@@ -177,6 +184,8 @@ class NPuzzle:
         
         self.buttons.draw(screen)
 
+        screen.blit(self.back_button,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - self.back_button.get_width()//2,20))
+
 
 
     def _play_game(self):
@@ -191,6 +200,17 @@ class NPuzzle:
         start_time = time.time()
 
         time_text = info_font.render("00:00.0",True,BLACK)
+            
+        def reset():
+            nonlocal finished,moves,moves_text,start_time,time_text
+            self._create_board()
+            finished = False
+            moves = 0
+            moves_text = info_font.render("MOVES: 0",True,BLACK)
+            start_time = time.time()
+            time_text = info_font.render("00:00.0",True,BLACK)
+            if self.solver_mode:
+                self.buttons.add(self.solve_button)
 
         while True:
             
@@ -213,7 +233,10 @@ class NPuzzle:
                 if  event.type == pygame.MOUSEBUTTONDOWN:
                     point = pygame.mouse.get_pos()
                     x,y = point
-
+                    
+            
+                    if self.back_button_rect.collidepoint(point):
+                        return
 
                     if not finished and not self.solver_mode and  x <= self.board_size:
                         row,col = y//self.square_size,x//self.square_size
@@ -227,7 +250,7 @@ class NPuzzle:
                                 moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
 
                     else:
-
+                        print(len(self.buttons))
                         for i,button in enumerate(self.buttons):
                             if button.collided_on(point):
                                 if i == 0:
@@ -241,11 +264,17 @@ class NPuzzle:
                                         self.buttons.add(self.solve_button)
                                 elif i == 1:
                                     return
-                                elif self.solver_mode and i == 2:
+                                elif self.solver_mode and i == 3:
                                     solver = NPuzzleSolver(self.board)
+                                    self.solve_button.kill()
                                     actions = solver.solve_ida()
-                                    moves_text = self._animate_solve(actions)
-                                    finished = True
+                                    moves_text= self._animate_solve(actions)
+                                    if moves_text == "menu":
+                                        return
+                                    if moves_text == "reset":
+                                        reset()
+                                    else:
+                                        finished = True
 
 
 
@@ -368,8 +397,20 @@ class NPuzzle:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-            
+                if event.type == pygame.MOUSEBUTTONDOWN: 
+                    point = pygame.mouse.get_pos()
+                    for i,button in enumerate(self.buttons):
+                        if button.collided_on(point):
+                            if i == 0:
+                                return "reset"
+
+                            elif i == 1:
+                                return "menu"
         
+            
+            point = pygame.mouse.get_pos()
+
+            self.buttons.update(point)
 
             current_location +=  1 * direction  
         
@@ -416,14 +457,30 @@ class NPuzzle:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    point = pygame.mouse.get_pos()
+                    for i,button in enumerate(self.buttons):
+                        if button.collided_on(point):
+                            if i == 0:
+                                return "reset"
+
+                            elif i == 1:
+                                return "menu"
             
+            
+            point = pygame.mouse.get_pos()
+
+            self.buttons.update(point)
 
             current_time = time.time()
 
             if current_time - start_time >= 2:
                 moves += 1
                 moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
-                self._make_move(actions[actions_index],moves_text,action_text,action_text_arrow)
+                result = self._make_move(actions[actions_index],moves_text,action_text,action_text_arrow)
+                if result in ("menu","reset"):
+                    return result
+
                 actions_index += 1
 
                 if actions_index == len(actions):
@@ -546,7 +603,14 @@ def menu():
 
     pygame.mixer.music.load('mainmenu.ogg')
     pygame.mixer.music.play(-1)
+
+    
+    back_image = pygame.image.load('back.png').convert_alpha()
+    back_image = pygame.transform.scale(back_image,(50,50))
+    back_image_rect = back_image.get_rect(topleft=(0,0))
     def get_board_size():
+        
+    
 
         title_text = title_font.render("BOARD SIZE",True,BLACK)
         title_rect = title_text.get_rect(center=(SCREEN_WIDTH//2,top_gap + title_text.get_height()//2))
@@ -654,6 +718,8 @@ def menu():
                         n = check_validity()
                         if n:
                             return n
+                    elif back_image_rect.collidepoint(point):
+                        return 
 
 
             
@@ -671,6 +737,14 @@ def menu():
             point = pygame.mouse.get_pos()
 
             button.update(point)
+            '''            
+            on_back_button = back_image_rect.collidepoint(point)
+
+            if on_back_button:
+                image = back_image_bigger
+            else:
+                image = back_image
+            '''
 
 
 
@@ -688,7 +762,8 @@ def menu():
             if invalid_start_time:
                 screen.blit(invalid_text,(SCREEN_WIDTH//2 - invalid_text.get_width()//2,SCREEN_HEIGHT -  top_gap-button_height - invalid_text.get_height()))
 
-
+        
+            screen.blit(back_image,(0,0))
 
             pygame.display.update()
 
@@ -721,8 +796,12 @@ def menu():
                     if button.collided_on(point):
                         solver_mode = False
                         n = get_board_size()
+                        if n is None:
+                            break
                         if i == 1:
                             solver_mode = True
+
+
                             
                         NPuzzle(n,solver_mode)
                         pygame.mixer.music.load('mainmenu.ogg')
