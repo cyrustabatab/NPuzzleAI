@@ -95,12 +95,14 @@ class NPuzzle:
 
             self.image = pygame.Surface((square_size,square_size))
             self.number = number
-
-            number_text = font.render(str(number),True,BLACK)
+            self.font = font 
+            self.square_size = square_size
+            self.number_text = font.render(str(number),True,BLACK)
 
             self.image.fill(TILE_COLOR)
 
-            self.image.blit(number_text,(square_size//2 - number_text.get_width()//2,square_size//2 - number_text.get_height()//2))
+            self.image.blit(self.number_text,(square_size//2 - self.number_text.get_width()//2,square_size//2 - self.number_text.get_height()//2))
+            self.text = number
 
 
 
@@ -108,6 +110,20 @@ class NPuzzle:
         
         def move(self,amount):
             self.rect.center += amount
+        
+        def unfocus(self):
+            self.image.fill(TILE_COLOR)
+            self.image.blit(self.number_text,(self.square_size//2 - self.number_text.get_width()//2,self.square_size//2 - self.number_text.get_height()//2))
+        def focus(self):
+            self.image.fill(WHITE)
+            self.image.blit(self.number_text,(self.square_size//2 - self.number_text.get_width()//2,self.square_size//2 - self.number_text.get_height()//2))
+
+        
+        def set_text(self,number):
+            self.text = number
+            self.number_text = self.font.render(str(number),True,BLACK)
+            self.image.fill(WHITE)
+            self.image.blit(self.number_text,(self.square_size//2 - self.number_text.get_width()//2,self.square_size//2 - self.number_text.get_height()//2))
 
         def draw(self,x,y):
             screen.blit(self.image,(x,y))
@@ -163,7 +179,7 @@ class NPuzzle:
         self._create_board()
         pygame.mixer.music.load('music.ogg')
         pygame.mixer.music.play(-1)
-        self._play_game()
+        #self._play_game()
     
     
     def _draw_board(self,tile_to_skip=None):
@@ -186,6 +202,151 @@ class NPuzzle:
 
         screen.blit(self.back_button,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - self.back_button.get_width()//2,20))
 
+    
+    def _get_custom_board(self):
+        
+
+        tiles = [[self.Tile(col * self.square_size,row * self.square_size,'',self.square_size,self.tile_font) for col in range(self.n)] for row in range(self.n)]
+
+
+        empty_tile = random.choice(tiles)
+
+
+
+
+
+
+
+        info_font = pygame.font.SysFont("calibri",20)
+        
+
+        missing_text = info_font.render("ONLY ONE EMPTY SQUARE!",True,BLACK)
+        duplicate_text = info_font.render("UNIQUE NUMBERS ONLY!",True,BLACK)
+        invalid_range_text = info_font.render(f"NUMBERS FROM 1-{self.n**2 -1} ONLY!",True,BLACK)
+        
+        
+        button_width = 200
+        button_height = button_width//2
+        create_button = Button(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - button_width//2,SCREEN_HEIGHT//2 - button_height//2,button_width,button_height,"CREATE",self.button_font)
+        
+
+        def check_validity():
+            
+            numbers = set()
+            for row in tiles:
+                for tile in row:
+                    number = tile.text
+                    if number in numbers:
+                        if number.isdigit():
+                            if int(number) > maximum:
+                                return invalid_range_text
+                            return duplicate_text
+                        else:
+                            return missing_text
+                    numbers.add(number)
+
+
+
+
+
+
+        button = pygame.sprite.GroupSingle(create_button)
+
+
+        focused = None
+        text = ''
+        maximum = self.n**2 - 1
+        result = None
+        while True:
+
+            current_time = time.time()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    point = pygame.mouse.get_pos()
+
+                    x,y = point
+
+                    if x <= self.board_size:
+                        row,col = y//self.square_size,x//self.square_size
+                        tiles[row][col].focus()
+                        if focused:
+                            focused.unfocus()
+                            text = tiles[row][col].text
+                        focused = tiles[row][col]
+                    else:
+                        if create_button.collided_on(point):
+                            result = check_validity()
+                            if result:
+                                start_time = time.time()
+                            else:
+                                self.numbers = [(int(tile.text) if tile.text != '' else None) for row in tiles for tile in row]
+
+                                print(self.numbers)
+
+
+
+
+
+
+                if focused and event.type == pygame.KEYDOWN:
+                    if pygame.K_0 <=event.key <= pygame.K_9: 
+                        number = chr(event.key)
+                        if not text and number == '0':
+                            continue
+                        if int(text + number) <= maximum:
+                            text += number
+                            focused.set_text(text)
+                    elif event.key == pygame.K_BACKSPACE:
+                        if text:
+                            text = text[:-1]
+                            focused.set_text(text)
+                            
+            
+            if result:
+                if current_time - start_time >= 1:
+                    result = None
+
+
+
+
+
+
+
+            point = pygame.mouse.get_pos()
+
+            button.update(point)
+
+
+
+
+
+            
+            screen.fill(BGCOLOR)
+
+            button.draw(screen)
+            for row in tiles:
+                for tile in row:
+                    tile.draw(*tile.rect.topleft)
+
+            for y in range(0,self.board_size,self.square_size):
+                pygame.draw.line(screen,BLACK,(0,y),(self.board_size,y))
+
+            for x in range(0,self.board_size + 1,self.square_size):
+                pygame.draw.line(screen,BLACK,(x,0),(x,self.board_size))
+            
+
+            if result:
+                screen.blit(result,(self.board_size + (SCREEN_WIDTH - self.board_size)//2 - result.get_width()//2,SCREEN_HEIGHT//2 + 2 * button_height))
+
+
+            pygame.display.update()
+
+
+
+        
 
 
     def _play_game(self):
@@ -215,7 +376,7 @@ class NPuzzle:
         while True:
             
 
-            if not self.solver_mode:
+            if not self.solver_mode and not finished:
                 current_time = time.time()
 
                 time_elapsed = current_time - start_time
@@ -236,7 +397,7 @@ class NPuzzle:
                     
             
                     if self.back_button_rect.collidepoint(point):
-                        return
+                        return 'back'
 
                     if not finished and not self.solver_mode and  x <= self.board_size:
                         row,col = y//self.square_size,x//self.square_size
@@ -250,7 +411,6 @@ class NPuzzle:
                                 moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
 
                     else:
-                        print(len(self.buttons))
                         for i,button in enumerate(self.buttons):
                             if button.collided_on(point):
                                 if i == 0:
@@ -264,6 +424,8 @@ class NPuzzle:
                                         self.buttons.add(self.solve_button)
                                 elif i == 1:
                                     return
+                                elif self.solver_mode and i == 2:
+                                   self._get_custom_board() 
                                 elif self.solver_mode and i == 3:
                                     solver = NPuzzleSolver(self.board)
                                     self.solve_button.kill()
@@ -275,8 +437,6 @@ class NPuzzle:
                                         reset()
                                     else:
                                         finished = True
-
-
 
 
 
@@ -803,10 +963,16 @@ def menu():
 
 
                             
-                        NPuzzle(n,solver_mode)
-                        pygame.mixer.music.load('mainmenu.ogg')
-                        pygame.mixer.music.play(-1)
-                        pygame.display.set_caption("N-Puzzle")
+                        result = NPuzzle(n,solver_mode)._play_game()
+
+                        while result == 'back':
+                            pygame.mixer.music.load('mainmenu.ogg')
+                            pygame.mixer.music.play(-1)
+                            pygame.display.set_caption("N-Puzzle")
+                            n = get_board_size()
+                            if n is None:
+                                break
+                            result = NPuzzle(n,solver_mode)._play_game()
 
 
 
