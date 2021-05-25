@@ -117,7 +117,13 @@ class NPuzzle:
         def focus(self):
             self.image.fill(WHITE)
             self.image.blit(self.number_text,(self.square_size//2 - self.number_text.get_width()//2,self.square_size//2 - self.number_text.get_height()//2))
+        
 
+
+        def standardize(self):
+            self.number = int(self.text)
+            self.image.fill(TILE_COLOR)
+            self.image.blit(self.number_text,(self.square_size//2 - self.number_text.get_width()//2,self.square_size//2 - self.number_text.get_height()//2))
         
         def set_text(self,number):
             self.text = number
@@ -212,9 +218,12 @@ class NPuzzle:
         empty_tile = random.choice(tiles)
 
 
+        
+        goal = list(range(1,self.n**2 ))
+        goal.append(None)
 
 
-
+        
 
 
         info_font = pygame.font.SysFont("calibri",20)
@@ -222,7 +231,8 @@ class NPuzzle:
 
         missing_text = info_font.render("ONLY ONE EMPTY SQUARE!",True,BLACK)
         duplicate_text = info_font.render("UNIQUE NUMBERS ONLY!",True,BLACK)
-        invalid_range_text = info_font.render(f"NUMBERS FROM 1-{self.n**2 -1} ONLY!",True,BLACK)
+        not_solvable = info_font.render(f"NOT SOLVABLE",True,BLACK)
+        already_solved = info_font.render("ALREADY SOLVED",True,BLACK)
         
         
         button_width = 200
@@ -253,10 +263,12 @@ class NPuzzle:
         button = pygame.sprite.GroupSingle(create_button)
 
 
-        focused = None
+        focused = tiles[0][0]
+        focused.focus()
         text = ''
         maximum = self.n**2 - 1
         result = None
+        current_row = current_col = 0
         while True:
 
             current_time = time.time()
@@ -272,6 +284,7 @@ class NPuzzle:
                     if x <= self.board_size:
                         row,col = y//self.square_size,x//self.square_size
                         tiles[row][col].focus()
+                        current_row,current_col = row,col
                         if focused:
                             focused.unfocus()
                             text = tiles[row][col].text
@@ -284,7 +297,31 @@ class NPuzzle:
                             else:
                                 self.numbers = [(int(tile.text) if tile.text != '' else None) for row in tiles for tile in row]
 
-                                print(self.numbers)
+                                if self.numbers == goal:
+                                    result = already_solved
+                                    start_time = time.time()
+                                elif self._is_solvable():
+
+
+
+
+                                    for i in range(len(tiles)):
+                                        for j in range(len(tiles[0])):
+                                            print(tiles[i][j].text,end='')
+                                            if tiles[i][j].text == '':
+                                                tiles[i][j] = None
+                                                self.none_location = (i,j)
+                                            else:
+                                                tiles[i][j].standardize()
+                                        print()
+                                    self.board = tiles
+                                    return
+                                else:
+                                    result = not_solvable
+                                    start_time = time.time()
+
+
+
 
 
 
@@ -303,7 +340,29 @@ class NPuzzle:
                         if text:
                             text = text[:-1]
                             focused.set_text(text)
+                    else:
+                        hit_arrow = False
+                        if event.key == pygame.K_DOWN:
+                            current_row = (current_row + 1) % self.n
+
+                            hit_arrow = True
+                        elif event.key == pygame.K_RIGHT:
+                            current_col = (current_col + 1) % self.n
+                            hit_arrow = True
+                        elif event.key == pygame.K_LEFT:
+                            current_col = (current_col - 1) % self.n
+                            hit_arrow = True
+                        elif event.key == pygame.K_UP:
+                            current_row = (current_row - 1) % self.n
+                            hit_arrow = True
+
                             
+                        if hit_arrow:
+                            tiles[current_row][current_col].focus()
+                            if focused:
+                                focused.unfocus()
+                                text = tiles[current_row][current_col].text
+                            focused = tiles[current_row][current_col]
             
             if result:
                 if current_time - start_time >= 1:
@@ -352,6 +411,8 @@ class NPuzzle:
     def _play_game(self):
 
         
+
+        game_win = pygame.mixer.Sound("game_win.wav")
         finished = False
         font = pygame.font.SysFont("calibri",80)
         info_font = pygame.font.SysFont("calibri",50)
@@ -407,6 +468,8 @@ class NPuzzle:
                                 self.board[neighbor_row][neighbor_col],self.board[row][col] = self.board[row][col],self.board[neighbor_row][neighbor_col]
                                 self.none_location = (row,col)
                                 finished = self._check_finished()
+                                if finished:
+                                    game_win.play()
                                 moves += 1
                                 moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
 
@@ -431,6 +494,8 @@ class NPuzzle:
                                     self.solve_button.kill()
                                     actions = solver.solve_ida()
                                     moves_text= self._animate_solve(actions)
+                                    if moves_text == 'back':
+                                        return moves_text
                                     if moves_text == "menu":
                                         return
                                     if moves_text == "reset":
@@ -468,6 +533,8 @@ class NPuzzle:
 
                     if moved:
                         finished = self._check_finished()
+                        if finished:
+                            game_win.play()
                         moves += 1
                         moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
 
@@ -559,6 +626,8 @@ class NPuzzle:
                     sys.exit()
                 if event.type == pygame.MOUSEBUTTONDOWN: 
                     point = pygame.mouse.get_pos()
+                    if self.back_button_rect.collidepoint(point):
+                        return "back"
                     for i,button in enumerate(self.buttons):
                         if button.collided_on(point):
                             if i == 0:
@@ -618,7 +687,11 @@ class NPuzzle:
                     pygame.quit()
                     sys.exit()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
+
                     point = pygame.mouse.get_pos()
+
+                    if self.back_button_rect.collidepoint(point):
+                        return "back"
                     for i,button in enumerate(self.buttons):
                         if button.collided_on(point):
                             if i == 0:
@@ -638,7 +711,7 @@ class NPuzzle:
                 moves += 1
                 moves_text = info_font.render(f"MOVES: {moves}",True,BLACK)
                 result = self._make_move(actions[actions_index],moves_text,action_text,action_text_arrow)
-                if result in ("menu","reset"):
+                if result in ("menu","reset","back"):
                     return result
 
                 actions_index += 1
@@ -734,8 +807,10 @@ class NPuzzle:
         
 
         random.shuffle(self.numbers)
-
-        while not self._is_solvable():
+        
+        goal = list(range(1,self.n**2))
+        goal.append(None)
+        while not self._is_solvable() or self.numbers == goal:
             random.shuffle(self.numbers)
 
         self.board = []
@@ -790,6 +865,7 @@ def menu():
         invalid_text_1 = title_font.render("Please Enter A Value!",True,BLACK)
         invalid_text_2 = title_font.render("Size has to be >= 2!",True,BLACK)
         invalid_text_3 = title_font.render("Size has to be <= 50!",True,BLACK)
+
 
         
         def check_validity():
@@ -975,6 +1051,9 @@ def menu():
                             result = NPuzzle(n,solver_mode)._play_game()
 
 
+                        pygame.mixer.music.load('mainmenu.ogg')
+                        pygame.mixer.music.play(-1)
+                        pygame.display.set_caption("N-Puzzle")
 
 
         point = pygame.mouse.get_pos() 
@@ -1115,7 +1194,8 @@ class NPuzzleSolver:
                     self.tiles.append(tile)
                 else:
                     self.tiles.append(tile.number)
-
+        
+        print(self.tiles)
         self.goal_state = list(range(1,self.n**2))
         self.goal_state.append(None)
 
